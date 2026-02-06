@@ -2,7 +2,7 @@ name: Build and Push Docker Image
 
 on:
   push:
-    branches: [ "main" ] # Срабатывает при обновлении ветки main
+    branches: [ "main" ]
 
 jobs:
   build:
@@ -11,6 +11,21 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+
+      # --- ВОТ ЭТО СПАСЕНИЕ ОТ ОШИБКИ ---
+      # Этот шаг удаляет лишний софт с сервера GitHub и освобождает ~30 ГБ места
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@main
+        with:
+          # Мы удаляем всё лишнее, что нам не нужно для докера
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: false
+          swap-storage: false
+      # ----------------------------------
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
@@ -29,5 +44,6 @@ jobs:
         with:
           context: .
           push: true
-          # ВНИМАНИЕ: Замени 'твое_имя/wan2.1-runpod' на твой реальный репозиторий Docker Hub!
-          tags: fantomyt/fantomyt-wan2.1-runpod
+          # ВНИМАНИЕ: Убедись, что тут твое имя репозитория!
+          # Если твой ник не fantom888, замени его на свой!
+          tags: fantomyt/fantomyt-wan2.1-runpod:latest
