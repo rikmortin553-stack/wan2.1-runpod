@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Остановка при ошибках
+# Остановка при ошибках (кроме фоновых процессов)
 set -e
 
 echo "🚀 Начинаем проверку и загрузку моделей..."
@@ -17,7 +17,6 @@ download_if_missing() {
     mkdir -p "$dir"
     if [ ! -f "$dir/$file" ]; then
         echo "📥 Скачиваю $file в $dir..."
-        # Используем aria2c для скорости (16 потоков)
         aria2c -x 16 -s 16 -k 1M -d "$dir" -o "$file" "$url"
     else
         echo "✅ $file уже существует, пропускаем."
@@ -45,24 +44,25 @@ download_if_missing "$BASE_DIR/vae" \
     "https://huggingface.co/Kijai/WanVideo_comfy/resolve/main/Wan2_1_VAE_bf16.safetensors"
 
 # --- 5. CLIP (Text Encoder) ---
-# Обычно UMT5 кладется в text_encoders или clip, проверим путь для WanWrapper
 download_if_missing "$BASE_DIR/text_encoders" \
     "umt5-xxl-enc-bf16.safetensors" \
     "https://huggingface.co/Kijai/WanVideo_comfy/resolve/main/umt5-xxl-enc-bf16.safetensors"
 
-# --- 6. Detection / ONNX (Для VitPose и YOLO) ---
-# WanVideoWrapper обычно ищет их в models/onnx или ultralytics
-# Скачаем в папку onnx (универсально) и detection (как просили)
+# --- 6. Detection / ONNX ---
 DETECT_DIR="$BASE_DIR/onnx"
-
 download_if_missing "$DETECT_DIR" "yolov10m.onnx" "https://huggingface.co/Wan-AI/Wan2.2-Animate-14B/resolve/main/process_checkpoint/det/yolov10m.onnx"
 download_if_missing "$DETECT_DIR" "vitpose_h_wholebody_data.bin" "https://huggingface.co/Kijai/vitpose_comfy/resolve/main/onnx/vitpose_h_wholebody_data.bin"
 download_if_missing "$DETECT_DIR" "vitpose_h_wholebody_model.onnx" "https://huggingface.co/Kijai/vitpose_comfy/resolve/main/onnx/vitpose_h_wholebody_model.onnx"
 download_if_missing "$DETECT_DIR" "vitpose-l-wholebody.onnx" "https://huggingface.co/JunkyByte/easy_ViTPose/resolve/main/onnx/wholebody/vitpose-l-wholebody.onnx"
 
+echo "----------------------------------------------------------------"
+echo "📓 Запускаю JupyterLab на порту 8888..."
+# Запуск Jupyter в фоновом режиме (&) без пароля
+jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.password='' &
+echo "----------------------------------------------------------------"
+
 echo "🎉 Все готово! Запускаем ComfyUI на порту 3001..."
 
-# Запуск ComfyUI
+# Запуск ComfyUI (основной процесс)
 cd /workspace/ComfyUI
-# Запускаем с listen (доступ извне) и указанным портом
 python main.py --listen 0.0.0.0 --port 3001
