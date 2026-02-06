@@ -1,10 +1,10 @@
-# Используем стабильную версию 2.4.0 (она точно есть в реестре)
+# ИСПОЛЬЗУЕМ ВЕРСИЮ 2.4.0 (Она 100% рабочая)
 FROM runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04
 
 # Рабочая директория
-WORKDIR /workspace/ComfyUI
+WORKDIR /workspace
 
-# 1. Системные пакеты
+# 1. Установка системных утилит (включая библиотеки для графики)
 RUN apt-get update && apt-get install -y \
     git \
     wget \
@@ -21,12 +21,12 @@ RUN git clone https://github.com/comfyanonymous/ComfyUI.git /workspace/ComfyUI
 RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r /workspace/ComfyUI/requirements.txt
 
-# 4. Установка обязательных нод
+# 4. Установка обязательных нод: Manager и WanVideoWrapper
 WORKDIR /workspace/ComfyUI/custom_nodes
 RUN git clone https://github.com/ltdrdata/ComfyUI-Manager.git
 RUN git clone https://github.com/kijai/ComfyUI-WanVideoWrapper.git
 
-# 5. Установка тяжелых зависимостей
+# 5. Установка тяжелых зависимостей для WanVideo
 WORKDIR /workspace/ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper
 RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install imageio[ffmpeg] kornia
@@ -34,11 +34,11 @@ RUN pip install imageio[ffmpeg] kornia
 # Возвращаемся в корень
 WORKDIR /workspace
 
-# 6. Скрипт запуска
+# 6. Копируем скрипт запуска
 COPY start.sh /start.sh
 RUN chmod +x /start.sh
 
-# ОТКРЫВАЕМ ПОРТЫ: 3001 (Comfy) и 8888 (Jupyter)
+# Открываем порты: 3001 (ComfyUI) и 8888 (Jupyter)
 EXPOSE 3001
 EXPOSE 8888
 
