@@ -2,62 +2,34 @@
 set +e 
 
 echo "----------------------------------------------------------------"
-echo "🚀 ЗАПУСК RTX 5090 (CUDA 12.8.1 + PYTHON 3.11.12)"
+echo "🚀 ЗАПУСК RTX 5090 (SAFE MODE)"
 echo "----------------------------------------------------------------"
 
-# 1. Лечение ComfyUI
 if [ ! -f "/workspace/ComfyUI/main.py" ]; then
-    echo "♻️ Восстанавливаю файлы ComfyUI из кэша..."
     rsync -a /comfy-cache/ /workspace/ComfyUI/
 fi
 
-# 2. Ожидание GPU
 echo "🔍 Проверяю GPU..."
-while ! nvidia-smi > /dev/null 2>&1; do
-    echo "⏳ Жду драйвер... (sleep 2)"
-    sleep 2
-done
-echo "✅ GPU готов!"
+while ! nvidia-smi > /dev/null 2>&1; do sleep 2; done
 
-# --- ЗАГРУЗКА ---
+# --- ЗАГРУЗКА ФАЙЛОВ ---
 BASE_DIR="/workspace/ComfyUI/models"
-
 download_big() {
-    local dir="$1"
-    local file="$2"
-    local url="$3"
-    mkdir -p "$dir"
-    if [ ! -f "$dir/$file" ]; then
-        echo "📥 [ARIA2] Скачиваю $file..."
-        aria2c -x 16 -s 16 -k 1M -d "$dir" -o "$file" "$url"
-    else
-        echo "✅ $file OK"
-    fi
+    mkdir -p "$1"
+    if [ ! -f "$1/$2" ]; then aria2c -x 16 -s 16 -k 1M -d "$1" -o "$2" "$3"; fi
 }
-
 download_safe() {
-    local dir="$1"
-    local file="$2"
-    local url="$3"
-    mkdir -p "$dir"
-    if [ ! -f "$dir/$file" ]; then
-        echo "📥 [WGET] Скачиваю $file..."
-        wget -O "$dir/$file" "$url"
-    else
-        echo "✅ $file OK"
-    fi
+    mkdir -p "$1"
+    if [ ! -f "$1/$2" ]; then wget -O "$1/$2" "$3"; fi
 }
 
-# Diffusion & LoRA
 download_big "$BASE_DIR/diffusion_models" "Wan21_SteadyDancer_fp8_e4m3fn_scaled_KJ.safetensors" "https://huggingface.co/Kijai/WanVideo_comfy_fp8_scaled/resolve/main/SteadyDancer/Wan21_SteadyDancer_fp8_e4m3fn_scaled_KJ.safetensors"
 download_big "$BASE_DIR/loras" "lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors" "https://huggingface.co/dci05049/wan-animate/resolve/main/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors"
 
-# Support
 download_safe "$BASE_DIR/clip_vision" "clip_vision_h.safetensors" "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/clip_vision/clip_vision_h.safetensors"
 download_safe "$BASE_DIR/vae" "Wan2_1_VAE_bf16.safetensors" "https://huggingface.co/Kijai/WanVideo_comfy/resolve/main/Wan2_1_VAE_bf16.safetensors"
 download_safe "$BASE_DIR/text_encoders" "umt5-xxl-enc-bf16.safetensors" "https://huggingface.co/Kijai/WanVideo_comfy/resolve/main/umt5-xxl-enc-bf16.safetensors"
 
-# Detection
 DET_DIR="$BASE_DIR/detection"
 if [ ! -d "$DET_DIR" ]; then mkdir -p "$DET_DIR"; fi
 download_safe "$DET_DIR" "yolov10m.onnx" "https://huggingface.co/Wan-AI/Wan2.2-Animate-14B/resolve/main/process_checkpoint/det/yolov10m.onnx"
@@ -69,7 +41,5 @@ echo "🏁 ЗАПУСК..."
 jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.password='' > /dev/null 2>&1 &
 
 cd /workspace/ComfyUI
-
-# ДОБАВЛЕНО: --disable-xformers и --force-fp16 (на всякий случай)
-# --highvram оставляем
+# ВАЖНО: Добавлен флаг --disable-xformers
 python -u main.py --listen 0.0.0.0 --port 3001 --highvram --disable-xformers
