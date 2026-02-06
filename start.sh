@@ -69,5 +69,7 @@ echo "🏁 ЗАПУСК..."
 jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.password='' > /dev/null 2>&1 &
 
 cd /workspace/ComfyUI
-# Флаг --highvram обязателен для 5090
-python -u main.py --listen 0.0.0.0 --port 3001 --highvram
+
+# ДОБАВЛЕНО: --disable-xformers и --force-fp16 (на всякий случай)
+# --highvram оставляем
+python -u main.py --listen 0.0.0.0 --port 3001 --highvram --disable-xformers
