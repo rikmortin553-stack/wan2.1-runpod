@@ -1,4 +1,4 @@
-# 1. СТРОГО CUDA 12.8.1 (как ты просил)
+# 1. БАЗА CUDA 12.8.1
 FROM nvidia/cuda:12.8.1-devel-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -8,8 +8,8 @@ ENV LD_LIBRARY_PATH="/usr/local/cuda/lib64:${LD_LIBRARY_PATH}"
 
 WORKDIR /
 
-# 2. ПОДГОТОВКА К СБОРКЕ PYTHON
-# Ставим библиотеки, необходимые для компиляции Python из исходников
+# 2. ПОДГОТОВКА СИСТЕМЫ (ИСПРАВЛЕНО!)
+# Добавлен liblzma-dev - без него Python не умеет работать с архивами и падает
 RUN apt-get update && apt-get install -y \
     build-essential \
     libssl-dev \
@@ -20,11 +20,12 @@ RUN apt-get update && apt-get install -y \
     libffi-dev \
     libsqlite3-dev \
     libbz2-dev \
+    liblzma-dev \
+    uuid-dev \
     git wget aria2 ffmpeg libgl1-mesa-glx libglib2.0-0 rsync curl \
     && rm -rf /var/lib/apt/lists/*
 
-# 3. КОМПИЛЯЦИЯ PYTHON 3.11.12 (ТОЧНАЯ ВЕРСИЯ)
-# Скачиваем исходники именно 3.11.12 и собираем
+# 3. КОМПИЛЯЦИЯ PYTHON 3.11.12
 RUN wget https://www.python.org/ftp/python/3.11.12/Python-3.11.12.tgz && \
     tar -xvf Python-3.11.12.tgz && \
     cd Python-3.11.12 && \
@@ -34,30 +35,27 @@ RUN wget https://www.python.org/ftp/python/3.11.12/Python-3.11.12.tgz && \
     cd .. && \
     rm -rf Python-3.11.12 Python-3.11.12.tgz
 
-# Проверяем, что python3 указывает куда надо
+# Ссылки
 RUN ln -s /usr/local/bin/python3.11 /usr/local/bin/python || true
 RUN ln -s /usr/local/bin/pip3.11 /usr/local/bin/pip || true
 
-# 4. УСТАНОВКА PYTORCH (ДЛЯ 5090)
-# Используем Nightly cu126 (совместим с CUDA 12.8 и RTX 5090)
+# 4. PYTORCH NIGHTLY (ДЛЯ 5090)
 RUN pip install --no-cache-dir --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu126
 
-# 5. УСТАНОВКА COMFYUI
+# 5. COMFYUI
 RUN git clone https://github.com/comfyanonymous/ComfyUI.git /comfy-cache
 
-# 6. ЗАВИСИМОСТИ (С ЗАЩИТОЙ ОТ DOWNGRADE)
-# Вырезаем torch из зависимостей, чтобы ComfyUI не поставил старую версию
+# 6. ЗАВИСИМОСТИ (ЗАЩИТА ОТ ЗАМЕНЫ TORCH)
 RUN sed -i '/torch/d' /comfy-cache/requirements.txt
 RUN pip install --no-cache-dir -r /comfy-cache/requirements.txt
 
-# 7. JUPYTER И НОДЫ
+# 7. НОДЫ
 RUN pip install jupyterlab
-
 WORKDIR /comfy-cache/custom_nodes
 RUN git clone https://github.com/ltdrdata/ComfyUI-Manager.git
 RUN git clone https://github.com/kijai/ComfyUI-WanVideoWrapper.git
 
-# 8. ЗАВИСИМОСТИ WAN (ЗАЩИТА ОТ DOWNGRADE)
+# 8. ЗАВИСИМОСТИ WAN
 WORKDIR /comfy-cache/custom_nodes/ComfyUI-WanVideoWrapper
 RUN sed -i '/torch/d' requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
@@ -65,7 +63,7 @@ RUN pip install imageio[ffmpeg] kornia protobuf sentencepiece huggingface_hub
 
 WORKDIR /workspace
 
-# 9. ЗАПУСК
+# 9. ФИНАЛ
 COPY start.sh /start.sh
 RUN chmod +x /start.sh
 
