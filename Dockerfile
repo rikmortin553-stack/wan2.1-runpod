@@ -1,4 +1,4 @@
-# 1. СТРОГО CUDA 12.8.1 (База от NVIDIA)
+# 1. СТРОГО CUDA 12.8.1
 FROM nvidia/cuda:12.8.1-devel-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -8,8 +8,7 @@ ENV LD_LIBRARY_PATH="/usr/local/cuda/lib64:${LD_LIBRARY_PATH}"
 
 WORKDIR /
 
-# 2. УСТАНОВКА ВСЕХ ЗАВИСИМОСТЕЙ ДЛЯ СБОРКИ PYTHON
-# Я включил сюда вообще всё, что может понадобиться, чтобы не было ошибок "No module named X"
+# 2. ПОДГОТОВКА (БИБЛИОТЕКИ)
 RUN apt-get update && apt-get install -y \
     build-essential \
     libssl-dev \
@@ -29,7 +28,7 @@ RUN apt-get update && apt-get install -y \
     git wget aria2 ffmpeg libgl1-mesa-glx libglib2.0-0 rsync curl \
     && rm -rf /var/lib/apt/lists/*
 
-# 3. КОМПИЛЯЦИЯ PYTHON 3.11.12 (С ВКЛЮЧЕННЫМИ МОДУЛЯМИ)
+# 3. КОМПИЛЯЦИЯ PYTHON 3.11.12
 RUN wget https://www.python.org/ftp/python/3.11.12/Python-3.11.12.tgz && \
     tar -xvf Python-3.11.12.tgz && \
     cd Python-3.11.12 && \
@@ -39,38 +38,42 @@ RUN wget https://www.python.org/ftp/python/3.11.12/Python-3.11.12.tgz && \
     cd .. && \
     rm -rf Python-3.11.12 Python-3.11.12.tgz
 
-# Создаем ссылки, чтобы система видела новый питон
+# Ссылки
 RUN ln -s /usr/local/bin/python3.11 /usr/local/bin/python || true
 RUN ln -s /usr/local/bin/pip3.11 /usr/local/bin/pip || true
 
-# 4. УСТАНОВКА PYTORCH (NIGHTLY ДЛЯ RTX 5090)
-# Ставим версию cu126, она единственная работает на Blackwell (5090)
+# 4. PYTORCH NIGHTLY (Единственный, кто понимает 5090)
 RUN pip install --no-cache-dir --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu126
 
-# 5. УСТАНОВКА COMFYUI
+# 5. COMFYUI
 RUN git clone https://github.com/comfyanonymous/ComfyUI.git /comfy-cache
 
-# 6. УСТАНОВКА ЗАВИСИМОСТЕЙ (С ВОССТАНОВЛЕНИЕМ УДАЛЕННЫХ)
-# Шаг А: Удаляем упоминания torch из файла требований, чтобы pip не скачал старую версию
+# 6. ЗАВИСИМОСТИ COMFYUI (ХИРУРГИЧЕСКАЯ ЧИСТКА)
+# Удаляем torch (чтобы не сломать версию)
 RUN sed -i '/torch/d' /comfy-cache/requirements.txt
-# Шаг Б: Ставим всё остальное (numpy, pillow...)
+# Удаляем xformers и flash-attn (они вызывают ошибку Kernel Image на 5090)
+RUN sed -i '/xformers/d' /comfy-cache/requirements.txt
+RUN sed -i '/flash-attn/d' /comfy-cache/requirements.txt
+
 RUN pip install --no-cache-dir -r /comfy-cache/requirements.txt
-# Шаг В: ВРУЧНУЮ возвращаем torchsde, который мы удалили (он нужен для Comfy)
-# Также добавляем einops и transformers, они нужны для Wan
+# Возвращаем torchsde, einops, transformers (они нужны и безопасны)
 RUN pip install --no-cache-dir torchsde einops transformers
 
-# 7. УСТАНОВКА JUPYTER И НОД
+# 7. НОДЫ
 RUN pip install jupyterlab
 WORKDIR /comfy-cache/custom_nodes
 RUN git clone https://github.com/ltdrdata/ComfyUI-Manager.git
 RUN git clone https://github.com/kijai/ComfyUI-WanVideoWrapper.git
 
-# 8. ЗАВИСИМОСТИ WAN VIDEO
+# 8. ЗАВИСИМОСТИ WAN (ЧИСТКА ОТ XFORMERS)
 WORKDIR /comfy-cache/custom_nodes/ComfyUI-WanVideoWrapper
-# Опять чистим torch, чтобы не сломать сборку
+# Опять вырезаем всё опасное
 RUN sed -i '/torch/d' requirements.txt
+RUN sed -i '/xformers/d' requirements.txt
+RUN sed -i '/flash-attn/d' requirements.txt
+
 RUN pip install --no-cache-dir -r requirements.txt
-# Добиваем библиотеки, которых может не хватать
+# Добиваем безопасные библиотеки
 RUN pip install imageio[ffmpeg] kornia protobuf sentencepiece huggingface_hub scipy
 
 WORKDIR /workspace
