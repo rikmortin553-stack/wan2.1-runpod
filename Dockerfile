@@ -8,7 +8,7 @@ ENV TORCH_CUDA_ARCH_LIST="12.0"
 
 WORKDIR /
 
-# 2. СИСТЕМНЫЕ ЗАВИСИМОСТИ (Нужны для будущей компиляции)
+# 2. СИСТЕМНЫЕ ЗАВИСИМОСТИ
 RUN apt-get update && apt-get install -y --no-install-recommends \
     software-properties-common \
     && add-apt-repository ppa:deadsnakes/ppa \
@@ -33,14 +33,18 @@ RUN pip install --no-cache-dir --upgrade pip wheel setuptools
 # 4. PYTORCH NIGHTLY (Под 5090)
 RUN pip install --no-cache-dir --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128
 
-# 5. УСТАНОВКА COMFYUI И БАЗОВЫХ БИБЛИОТЕК
-RUN git clone https://github.com/comfyanonymous/ComfyUI.git /workspace/ComfyUI
+# 5. УСТАНОВКА БИБЛИОТЕК (ИСПРАВЛЕНИЕ)
+# Добавляем onnxruntime-gpu (для детекторов), GitPython (для менеджера), rembg
+RUN pip install --no-cache-dir \
+    numpy pillow scipy tqdm psutil requests pyyaml huggingface_hub \
+    safetensors transformers>=4.38.0 accelerate einops sentencepiece \
+    opencv-python kornia spandrel soundfile jupyterlab \
+    onnxruntime-gpu GitPython rembg
 
+# 6. ComfyUI
+RUN git clone https://github.com/comfyanonymous/ComfyUI.git /workspace/ComfyUI
 WORKDIR /workspace/ComfyUI
 RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install --no-cache-dir jupyterlab
-
-# 6. ВАЖНО: Мы НЕ компилируем SageAttention здесь. Мы делаем это в start.sh.
 
 COPY start.sh /start.sh
 RUN chmod +x /start.sh
