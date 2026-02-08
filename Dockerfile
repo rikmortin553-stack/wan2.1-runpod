@@ -6,17 +6,17 @@ ENV TORCH_CUDA_ARCH_LIST="12.0"
 
 WORKDIR /
 
-# Системные зависимости
+# 1. Системные зависимости
 RUN apt-get update && apt-get install -y --no-install-recommends \
     software-properties-common \
     && add-apt-repository ppa:deadsnakes/ppa \
     && apt-get update && apt-get install -y --no-install-recommends \
     python3.11 python3.11-venv python3.11-dev \
     git wget curl aria2 build-essential ninja-build \
-    libgl1-mesa-glx libglib2.0-0 \
+    libgl1-mesa-glx libglib2.0-0 rsync \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Python
+# 2. Python
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 && \
     update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1
 
@@ -26,20 +26,26 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 RUN pip install --no-cache-dir --upgrade pip wheel setuptools
 
-# PyTorch Nightly
+# 3. PyTorch Nightly
 RUN pip install --no-cache-dir --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128
 
-# Библиотеки (включая ONNX и Git)
+# 4. Библиотеки
 RUN pip install --no-cache-dir \
     numpy pillow scipy tqdm psutil requests pyyaml huggingface_hub \
     safetensors transformers>=4.38.0 accelerate einops sentencepiece \
     opencv-python kornia spandrel soundfile jupyterlab \
     onnxruntime-gpu GitPython rembg
 
-# ComfyUI
-RUN git clone https://github.com/comfyanonymous/ComfyUI.git /workspace/ComfyUI
-WORKDIR /workspace/ComfyUI
+# 5. СБОРКА В SAFE DIR
+RUN git clone https://github.com/comfyanonymous/ComfyUI.git /comfy-build
+WORKDIR /comfy-build
 RUN pip install --no-cache-dir -r requirements.txt
+
+RUN git clone https://github.com/ltdrdata/ComfyUI-Manager.git custom_nodes/ComfyUI-Manager
+RUN pip install --no-cache-dir -r custom_nodes/ComfyUI-Manager/requirements.txt
+
+RUN git clone https://github.com/kijai/ComfyUI-WanVideoWrapper.git custom_nodes/ComfyUI-WanVideoWrapper
+RUN pip install --no-cache-dir -r custom_nodes/ComfyUI-WanVideoWrapper/requirements.txt
 
 COPY start.sh /start.sh
 RUN chmod +x /start.sh
