@@ -2,87 +2,75 @@
 set -e
 
 echo "----------------------------------------------------------------"
-echo "🚀 ЗАПУСК NVIDIA BLACKWELL (RTX 5090) - CODE FROM DOCS"
+echo "🚀 ЗАПУСК RTX 5090 (RUNTIME COMPILATION MODE)"
 echo "----------------------------------------------------------------"
 
-# Настройки путей
-WORKSPACE="/workspace"
-COMFY_DIR="$WORKSPACE/ComfyUI"
-CUSTOM_NODES="$COMFY_DIR/custom_nodes"
-VENV_DIR="/opt/venv"
+# Настройка окружения
+source /opt/venv/bin/activate
+export TORCH_CUDA_ARCH_LIST="12.0"
+# Используем все ядра RunPod для быстрой компиляции
+export MAX_JOBS=$(nproc)
 
-# 1. Активация виртуального окружения (где лежат наши скомпилированные либы)
-source "$VENV_DIR/bin/activate"
-
-# 2. Диагностика (Чтобы ты был спокоен)
-echo ">>> System Check:"
-echo " Python: $(python --version)"
-echo " Torch: $(python -c 'import torch; print(torch.__version__)')"
-echo " CUDA Available: $(python -c 'import torch; print(torch.cuda.is_available())')"
-echo " Arch List: $(python -c 'import torch; print(torch.cuda.get_arch_list())')" 
-
-# 3. Установка/Обновление ComfyUI
-if [ ! -d "$COMFY_DIR" ]; then
-    echo ">>> ComfyUI not found. Cloning..."
-    git clone https://github.com/comfyanonymous/ComfyUI.git "$COMFY_DIR"
+# 1. ПРОВЕРКА И КОМПИЛЯЦИЯ SAGEATTENTION
+# Это выполнится только один раз при старте
+if ! python -c "import sageattention" 2>/dev/null; then
+    echo "⚙️ SageAttention не найден. Компилирую под RTX 5090..."
+    echo "⏳ Это займет 2-4 минуты. Не паникуй, это нормально..."
+    
+    cd /workspace
+    if [ -d "SageAttention" ]; then rm -rf SageAttention; fi
+    git clone https://github.com/thu-ml/SageAttention.git
+    cd SageAttention
+    
+    # Самый важный момент: компиляция под sm_120
+    pip install . --no-build-isolation
+    
+    echo "✅ SageAttention успешно скомпилирован!"
 else
-    echo ">>> ComfyUI found. Pulling updates..."
-    cd "$COMFY_DIR"
-    git pull
+    echo "✅ SageAttention уже установлен."
 fi
 
-# 4. Установка зависимостей с ЗАЩИТОЙ
-echo ">>> Installing dependencies (Safe Mode)..."
-cd "$COMFY_DIR"
-# Создаем safe-файл, исключая torch, чтобы pip не сломал нашу nightly-сборку
-grep -vE "torch|torchvision|torchaudio" requirements.txt > requirements_safe.txt
-pip install -r requirements_safe.txt
-
-# 5. Установка WanVideoWrapper (Kijai)
-mkdir -p "$CUSTOM_NODES"
-if [ ! -d "$CUSTOM_NODES/ComfyUI-WanVideoWrapper" ]; then
-    echo ">>> Installing WanVideoWrapper..."
-    git clone https://github.com/kijai/ComfyUI-WanVideoWrapper.git "$CUSTOM_NODES/ComfyUI-WanVideoWrapper"
-    cd "$CUSTOM_NODES/ComfyUI-WanVideoWrapper"
-    # Тоже фильтруем torch
-    grep -vE "torch|torchvision|torchaudio|sageattention" requirements.txt > requirements_safe.txt
-    pip install -r requirements_safe.txt
-else
-    echo ">>> Updating WanVideoWrapper..."
-    cd "$CUSTOM_NODES/ComfyUI-WanVideoWrapper"
-    git pull
-    grep -vE "torch|torchvision|torchaudio|sageattention" requirements.txt > requirements_safe.txt
-    pip install -r requirements_safe.txt
+# 2. Установка/Обновление ComfyUI
+if [ ! -d "/workspace/ComfyUI" ]; then
+    git clone https://github.com/comfyanonymous/ComfyUI.git /workspace/ComfyUI
 fi
 
-# Установка Manager
-if [ ! -d "$CUSTOM_NODES/ComfyUI-Manager" ]; then
-    git clone https://github.com/ltdrdata/ComfyUI-Manager.git "$CUSTOM_NODES/ComfyUI-Manager"
+# 3. Установка WanVideoWrapper (Ноды)
+NODES_DIR="/workspace/ComfyUI/custom_nodes"
+mkdir -p "$NODES_DIR"
+
+if [ ! -d "$NODES_DIR/ComfyUI-WanVideoWrapper" ]; then
+    echo "📦 Скачиваю WanVideo ноды..."
+    git clone https://github.com/kijai/ComfyUI-WanVideoWrapper.git "$NODES_DIR/ComfyUI-WanVideoWrapper"
+    cd "$NODES_DIR/ComfyUI-WanVideoWrapper"
+    # Удаляем sageattention из требований, так как мы его уже скомпилировали вручную
+    sed -i '/sageattention/d' requirements.txt
+    pip install -r requirements.txt
 fi
 
-# 6. Загрузка моделей (Базовая, чтобы ты мог начать)
-# Я добавил проверку, чтобы не качать каждый раз
-MODEL_PATH="$COMFY_DIR/models"
-mkdir -p "$MODEL_PATH/diffusion_models" "$MODEL_PATH/text_encoders" "$MODEL_PATH/vae" "$MODEL_PATH/clip_vision"
+if [ ! -d "$NODES_DIR/ComfyUI-Manager" ]; then
+    git clone https://github.com/ltdrdata/ComfyUI-Manager.git "$NODES_DIR/ComfyUI-Manager"
+fi
 
-# Функция безопасной загрузки
-download_file() {
+# 4. Загрузка моделей (Минимальный набор)
+MODELS="/workspace/ComfyUI/models"
+mkdir -p "$MODELS/diffusion_models" "$MODELS/vae" "$MODELS/text_encoders" "$MODELS/clip_vision"
+
+download_if_missing() {
     if [ ! -f "$1/$2" ]; then
-        echo "📥 Downloading $2..."
+        echo "📥 Скачиваю $2..."
         aria2c -x 16 -s 16 -k 1M -d "$1" -o "$2" "$3"
     fi
 }
 
-# Wan 2.1 Models (Ссылки из твоего прошлого запроса)
-download_file "$MODEL_PATH/diffusion_models" "Wan21_SteadyDancer_fp8_e4m3fn_scaled_KJ.safetensors" "https://huggingface.co/Kijai/WanVideo_comfy_fp8_scaled/resolve/main/SteadyDancer/Wan21_SteadyDancer_fp8_e4m3fn_scaled_KJ.safetensors"
-download_file "$MODEL_PATH/vae" "Wan2_1_VAE_bf16.safetensors" "https://huggingface.co/Kijai/WanVideo_comfy/resolve/main/Wan2_1_VAE_bf16.safetensors"
-download_file "$MODEL_PATH/text_encoders" "umt5-xxl-enc-bf16.safetensors" "https://huggingface.co/Kijai/WanVideo_comfy/resolve/main/umt5-xxl-enc-bf16.safetensors"
-download_file "$MODEL_PATH/clip_vision" "clip_vision_h.safetensors" "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/clip_vision/clip_vision_h.safetensors"
+download_if_missing "$MODELS/diffusion_models" "Wan21_SteadyDancer_fp8_e4m3fn_scaled_KJ.safetensors" "https://huggingface.co/Kijai/WanVideo_comfy_fp8_scaled/resolve/main/SteadyDancer/Wan21_SteadyDancer_fp8_e4m3fn_scaled_KJ.safetensors"
+download_if_missing "$MODELS/vae" "Wan2_1_VAE_bf16.safetensors" "https://huggingface.co/Kijai/WanVideo_comfy/resolve/main/Wan2_1_VAE_bf16.safetensors"
 
-# 7. Запуск
-echo ">>> Launching ComfyUI on Port 3000 (Proxy Compatible)..."
-jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.password='' > /dev/null 2>&1 &
+# 5. Запуск
+echo "🏁 Запускаю ComfyUI..."
+cd /workspace/ComfyUI
+# Запускаем Jupyter на фоне
+jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='' &
 
-cd "$COMFY_DIR"
-# Используем --gpu-only согласно рекомендации документа №2 для 5090
+# Запускаем Comfy
 python main.py --listen 0.0.0.0 --port 3000 --gpu-only
