@@ -2,7 +2,7 @@
 set -e
 
 echo "----------------------------------------------------------------"
-echo "🚀 ЗАПУСК RTX 5090 (WAN DANCER + PREPROCESSORS)"
+echo "🚀 ЗАПУСК RTX 5090 (FIXED URL & NUMPY)"
 echo "----------------------------------------------------------------"
 
 source /opt/venv/bin/activate
@@ -33,7 +33,7 @@ if [ ! -f "/workspace/ComfyUI/main.py" ]; then
     chmod -R 777 /workspace/ComfyUI
 fi
 
-# 4. УСТАНОВКА НОД (ТЕПЕРЬ ПОЛНЫЙ КОМПЛЕКТ)
+# 4. УСТАНОВКА НОД
 NODES_DIR="/workspace/ComfyUI/custom_nodes"
 mkdir -p "$NODES_DIR"
 
@@ -41,28 +41,30 @@ install_node() {
     url=$1
     folder=$2
     if [ ! -d "$NODES_DIR/$folder" ]; then
-        echo "📦 Скачиваю $folder..."
+        echo "⬇️ Скачиваю: $folder..."
         git clone "$url" "$NODES_DIR/$folder"
         if [ -f "$NODES_DIR/$folder/requirements.txt" ]; then
             pip install -r "$NODES_DIR/$folder/requirements.txt" || true
         fi
+    else
+        echo "✅ $folder уже установлен."
     fi
 }
 
-echo "⬇️ Устанавливаю ноды..."
+echo "📦 Установка нод..."
 
-# Основные
 install_node "https://github.com/kijai/ComfyUI-WanVideoWrapper.git" "ComfyUI-WanVideoWrapper"
 install_node "https://github.com/ltdrdata/ComfyUI-Manager.git" "ComfyUI-Manager"
 install_node "https://github.com/kijai/ComfyUI-KJNodes.git" "ComfyUI-KJNodes"
 install_node "https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git" "ComfyUI-VideoHelperSuite"
 
-# !!! ВОТ ОНИ, ТЕ САМЫЕ ПРОПУЩЕННЫЕ НОДЫ !!!
-# Содержат OnnxDetectionModelLoader, PoseAndFaceDetection
-install_node "https://github.com/Wan-Video/ComfyUI-WanAnimatePreprocess.git" "ComfyUI-WanAnimatePreprocess"
+# !!! ИСПРАВЛЕНИЕ: ПРАВИЛЬНАЯ ССЫЛКА !!!
+# Было: github.com/Wan-Video/... (ОШИБКА)
+# Стало: github.com/kijai/... (ПРАВИЛЬНО)
+install_node "https://github.com/kijai/ComfyUI-WanAnimatePreprocess.git" "ComfyUI-WanAnimatePreprocess"
 
-# Добиваем зависимости
-pip install onnxruntime-gpu GitPython imageio-ffmpeg rembg matplotlib pandas
+# Добиваем зависимости (numpy<2 критичен для OnnxDetectionModelLoader)
+pip install "numpy<2" onnxruntime-gpu GitPython imageio-ffmpeg rembg matplotlib pandas ultralytics
 
 # 5. МОДЕЛИ
 MODELS="/workspace/ComfyUI/models"
@@ -84,7 +86,7 @@ download_if_missing "$MODELS/vae" "Wan2_1_VAE_bf16.safetensors" "https://hugging
 download_if_missing "$MODELS/text_encoders" "umt5-xxl-enc-bf16.safetensors" "https://huggingface.co/Kijai/WanVideo_comfy/resolve/main/umt5-xxl-enc-bf16.safetensors"
 download_if_missing "$MODELS/clip_vision" "clip_vision_h.safetensors" "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/clip_vision/clip_vision_h.safetensors"
 
-# Detection Models (Для той самой ноды OnnxDetectionModelLoader)
+# Detection Models
 download_if_missing "$MODELS/detection" "yolov10m.onnx" "https://huggingface.co/Wan-AI/Wan2.2-Animate-14B/resolve/main/process_checkpoint/det/yolov10m.onnx"
 download_if_missing "$MODELS/detection" "vitpose_h_wholebody_data.bin" "https://huggingface.co/Kijai/vitpose_comfy/resolve/main/onnx/vitpose_h_wholebody_data.bin"
 download_if_missing "$MODELS/detection" "vitpose_h_wholebody_model.onnx" "https://huggingface.co/Kijai/vitpose_comfy/resolve/main/onnx/vitpose_h_wholebody_model.onnx"
@@ -97,5 +99,4 @@ cd /workspace
 jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='' --notebook-dir=/workspace --ServerApp.allow_origin='*' --ServerApp.disable_check_xsrf=True &
 
 cd /workspace/ComfyUI
-# GPU-Only
 python main.py --listen 0.0.0.0 --port 3000 --gpu-only
