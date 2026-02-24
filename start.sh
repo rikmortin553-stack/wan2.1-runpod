@@ -56,11 +56,13 @@ install_node "https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git" "Comf
 install_node "https://github.com/kijai/ComfyUI-WanAnimatePreprocess.git" "ComfyUI-WanAnimatePreprocess"
 install_node "https://github.com/yolain/ComfyUI-Easy-Use.git" "ComfyUI-Easy-Use"
 
-# !!! ИСПРАВЛЕНИЕ: Удаляем конфликтный процессорный onnxruntime !!!
-echo "🧹 Удаление конфликтующих библиотек..."
-pip uninstall -y onnxruntime || true
+echo "🧹 Полная чистка ONNX во избежание конфликтов..."
+pip uninstall -y onnxruntime onnxruntime-gpu || true
 
-# Устанавливаем правильные версии
+echo "🔧 Восстановление PyTorch для RTX 5090..."
+pip install --upgrade --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128
+
+echo "📦 Чистая установка ONNX GPU и остальных библиотек..."
 pip install "numpy<2" onnxruntime-gpu GitPython imageio-ffmpeg rembg matplotlib pandas ultralytics
 
 MODELS="/workspace/ComfyUI/models"
