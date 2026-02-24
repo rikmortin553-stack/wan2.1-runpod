@@ -2,19 +2,17 @@
 set -e
 
 echo "----------------------------------------------------------------"
-echo "🚀 ЗАПУСК RTX 5090 (FIXED URL & NUMPY)"
+echo "🚀 ЗАПУСК RTX 5090 (FIXED ONNX CONFLICT)"
 echo "----------------------------------------------------------------"
 
 source /opt/venv/bin/activate
 export TORCH_CUDA_ARCH_LIST="12.0"
 export MAX_JOBS=$(nproc)
 
-# 1. ПРАВА
 echo "🔑 Раздаю права..."
 mkdir -p /workspace
 chmod -R 777 /workspace
 
-# 2. SAGEATTENTION
 if ! python -c "import sageattention" 2>/dev/null; then
     echo "⚙️ Компилирую SageAttention..."
     cd /
@@ -25,7 +23,6 @@ if ! python -c "import sageattention" 2>/dev/null; then
     echo "✅ SageAttention готов!"
 fi
 
-# 3. ВОССТАНОВЛЕНИЕ COMFYUI
 if [ ! -f "/workspace/ComfyUI/main.py" ]; then
     echo "📦 Разворачиваю ComfyUI..."
     mkdir -p /workspace/ComfyUI
@@ -33,7 +30,6 @@ if [ ! -f "/workspace/ComfyUI/main.py" ]; then
     chmod -R 777 /workspace/ComfyUI
 fi
 
-# 4. УСТАНОВКА НОД
 NODES_DIR="/workspace/ComfyUI/custom_nodes"
 mkdir -p "$NODES_DIR"
 
@@ -57,17 +53,16 @@ install_node "https://github.com/kijai/ComfyUI-WanVideoWrapper.git" "ComfyUI-Wan
 install_node "https://github.com/ltdrdata/ComfyUI-Manager.git" "ComfyUI-Manager"
 install_node "https://github.com/kijai/ComfyUI-KJNodes.git" "ComfyUI-KJNodes"
 install_node "https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git" "ComfyUI-VideoHelperSuite"
+install_node "https://github.com/kijai/ComfyUI-WanAnimatePreprocess.git" "ComfyUI-WanAnimatePreprocess"
 install_node "https://github.com/yolain/ComfyUI-Easy-Use.git" "ComfyUI-Easy-Use"
 
-# !!! ИСПРАВЛЕНИЕ: ПРАВИЛЬНАЯ ССЫЛКА !!!
-# Было: github.com/Wan-Video/... (ОШИБКА)
-# Стало: github.com/kijai/... (ПРАВИЛЬНО)
-install_node "https://github.com/kijai/ComfyUI-WanAnimatePreprocess.git" "ComfyUI-WanAnimatePreprocess"
+# !!! ИСПРАВЛЕНИЕ: Удаляем конфликтный процессорный onnxruntime !!!
+echo "🧹 Удаление конфликтующих библиотек..."
+pip uninstall -y onnxruntime || true
 
-# Добиваем зависимости (numpy<2 критичен для OnnxDetectionModelLoader)
+# Устанавливаем правильные версии
 pip install "numpy<2" onnxruntime-gpu GitPython imageio-ffmpeg rembg matplotlib pandas ultralytics
 
-# 5. МОДЕЛИ
 MODELS="/workspace/ComfyUI/models"
 echo "📂 Создаю папки моделей..."
 mkdir -p "$MODELS/detection" "$MODELS/diffusion_models" "$MODELS/vae" "$MODELS/text_encoders" "$MODELS/clip_vision" "$MODELS/loras"
@@ -86,7 +81,6 @@ download_if_missing "$MODELS/diffusion_models" "Wan21_SteadyDancer_fp8_e4m3fn_sc
 download_if_missing "$MODELS/vae" "Wan2_1_VAE_bf16.safetensors" "https://huggingface.co/Kijai/WanVideo_comfy/resolve/main/Wan2_1_VAE_bf16.safetensors"
 download_if_missing "$MODELS/text_encoders" "umt5-xxl-enc-bf16.safetensors" "https://huggingface.co/Kijai/WanVideo_comfy/resolve/main/umt5-xxl-enc-bf16.safetensors"
 download_if_missing "$MODELS/clip_vision" "clip_vision_h.safetensors" "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/clip_vision/clip_vision_h.safetensors"
-download_if_missing "$MODELS/loras" "lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors" "https://huggingface.co/dci05049/wan-animate/resolve/main/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors"
 
 # Detection Models
 download_if_missing "$MODELS/detection" "yolov10m.onnx" "https://huggingface.co/Wan-AI/Wan2.2-Animate-14B/resolve/main/process_checkpoint/det/yolov10m.onnx"
@@ -94,7 +88,9 @@ download_if_missing "$MODELS/detection" "vitpose_h_wholebody_data.bin" "https://
 download_if_missing "$MODELS/detection" "vitpose_h_wholebody_model.onnx" "https://huggingface.co/Kijai/vitpose_comfy/resolve/main/onnx/vitpose_h_wholebody_model.onnx"
 download_if_missing "$MODELS/detection" "vitpose-l-wholebody.onnx" "https://huggingface.co/JunkyByte/easy_ViTPose/resolve/main/onnx/wholebody/vitpose-l-wholebody.onnx"
 
-# 6. ЗАПУСК
+# LoRA
+download_if_missing "$MODELS/loras" "lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors" "https://huggingface.co/dci05049/wan-animate/resolve/main/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors"
+
 echo "🏁 Запускаю..."
 
 cd /workspace
