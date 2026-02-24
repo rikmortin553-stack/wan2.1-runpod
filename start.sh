@@ -57,6 +57,7 @@ install_node "https://github.com/kijai/ComfyUI-WanVideoWrapper.git" "ComfyUI-Wan
 install_node "https://github.com/ltdrdata/ComfyUI-Manager.git" "ComfyUI-Manager"
 install_node "https://github.com/kijai/ComfyUI-KJNodes.git" "ComfyUI-KJNodes"
 install_node "https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git" "ComfyUI-VideoHelperSuite"
+install_node "https://github.com/yolain/ComfyUI-Easy-Use.git" "ComfyUI-Easy-Use"
 
 # !!! ИСПРАВЛЕНИЕ: ПРАВИЛЬНАЯ ССЫЛКА !!!
 # Было: github.com/Wan-Video/... (ОШИБКА)
@@ -69,7 +70,7 @@ pip install "numpy<2" onnxruntime-gpu GitPython imageio-ffmpeg rembg matplotlib 
 # 5. МОДЕЛИ
 MODELS="/workspace/ComfyUI/models"
 echo "📂 Создаю папки моделей..."
-mkdir -p "$MODELS/detection" "$MODELS/diffusion_models" "$MODELS/vae" "$MODELS/text_encoders" "$MODELS/clip_vision"
+mkdir -p "$MODELS/detection" "$MODELS/diffusion_models" "$MODELS/vae" "$MODELS/text_encoders" "$MODELS/clip_vision" "$MODELS/loras"
 chmod -R 777 "$MODELS"
 
 download_if_missing() {
@@ -85,6 +86,7 @@ download_if_missing "$MODELS/diffusion_models" "Wan21_SteadyDancer_fp8_e4m3fn_sc
 download_if_missing "$MODELS/vae" "Wan2_1_VAE_bf16.safetensors" "https://huggingface.co/Kijai/WanVideo_comfy/resolve/main/Wan2_1_VAE_bf16.safetensors"
 download_if_missing "$MODELS/text_encoders" "umt5-xxl-enc-bf16.safetensors" "https://huggingface.co/Kijai/WanVideo_comfy/resolve/main/umt5-xxl-enc-bf16.safetensors"
 download_if_missing "$MODELS/clip_vision" "clip_vision_h.safetensors" "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/clip_vision/clip_vision_h.safetensors"
+download_if_missing "$MODELS/loras" "lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors" "https://huggingface.co/dci05049/wan-animate/resolve/main/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors"
 
 # Detection Models
 download_if_missing "$MODELS/detection" "yolov10m.onnx" "https://huggingface.co/Wan-AI/Wan2.2-Animate-14B/resolve/main/process_checkpoint/det/yolov10m.onnx"
